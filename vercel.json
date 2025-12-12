@@ -3,16 +3,13 @@
   "routes": [
     { "src": "^/$", "dest": "/static/index.html" },
 
-    /* serve static assets from /static/ folder */
     { "src": "^/static/(.*)$", "dest": "/static/$1" },
 
-    /* proxy /api/* to your backend service (replace the backend URL) */
     {
       "src": "^/api/(.*)$",
-      "dest": "https://https://studytrackerog.onrender.com/api/$1"
+      "dest": "https://studytrackerog.onrender.com/api/$1"
     },
 
-    /* fallback: serve index for SPA client-side routing if any */
     { "src": "^(?!/api/).*", "dest": "/static/index.html" }
   ]
 }

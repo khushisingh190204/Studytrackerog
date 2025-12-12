@@ -892,6 +892,7 @@
                     <button class="nav-btn" onclick="showPage('analytics', event)">Analytics</button>
                     <button class="nav-btn" onclick="showPage('goals', event)">Goals & Tasks</button>
                     <button class="nav-btn" onclick="showPage('history', event)">History</button>
+                    <button class="nav-btn" onclick="showPage('quiz', event)">Quizzes</button>
                     <button class="nav-btn" onclick="showPage('settings', event)">Settings</button>
                 </div>
                 <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
@@ -1040,6 +1041,60 @@
                 </div>
             </div>
         </div>
+<!-- BEGIN: Quiz Page -->
+<div class="page" id="quiz-page">
+  <div class="container">
+    <h2 style="margin-bottom:1rem; font-size:2rem;">📝 Quizzes</h2>
+
+    <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+      <!-- Left: Quiz area -->
+      <div style="flex:1; min-width:320px;">
+        <div id="quizSelector" style="margin-bottom:1rem;">
+          <div style="margin-bottom:0.5rem; font-weight:700;">Select Subject</div>
+          <div id="subjectList" style="display:flex; gap:0.6rem; flex-wrap:wrap;"></div>
+        </div>
+
+        <div id="quizArea" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+            <div id="quizSubjectTitle" style="font-weight:700">Subject</div>
+            <div id="quizProgressText" style="font-size:0.9rem; color:var(--text-light-muted)">0 / 0</div>
+          </div>
+
+          <div style="background:var(--bg-light-secondary); border:1px solid var(--border-light); padding:1rem; border-radius:10px;">
+            <div id="questionText" style="font-weight:700; margin-bottom:0.6rem;">Question goes here</div>
+            <div id="optionsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; margin-top:0.8rem;">
+            <button class="btn-secondary" onclick="quitQuiz()">Quit</button>
+            <div>
+              <button class="btn-primary" onclick="nextQuestion()">Next</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="quizSummary" style="display:none; margin-top:0.8rem;">
+          <div style="background:var(--bg-light-secondary); border:1px solid var(--border-light); padding:1rem; border-radius:10px;">
+            <div id="summaryBody"></div>
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:0.6rem;">
+            <button class="btn-secondary" onclick="retakeQuiz()">Retake</button>
+            <button class="btn-primary" onclick="quitQuiz()">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: History -->
+      <div style="width:320px; min-width:220px;">
+        <div class="chart-container" style="padding:1rem;">
+          <div class="chart-title" style="font-size:1.05rem;">Quiz History</div>
+          <div id="quizHistory" style="margin-top:0.6rem;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- END: Quiz Page -->
 
         <div class="page" id="history-page">
             <div class="container">
@@ -1762,6 +1817,157 @@
 
             return maxStreak;
         }
+
+
+        const quizBank = {
+  "DBMS": [
+    { q: "What does DBMS stand for?", opts: ["Database Management System", "Data Block Management Service", "Digital Base Management Set", "Direct Backup Management System"], a: 0 },
+    { q: "Which normal form eliminates transitive dependency?", opts: ["1NF", "2NF", "3NF", "BCNF"], a: 2 },
+    { q: "Which SQL command removes rows from a table?", opts: ["DELETE", "DROP", "REMOVE", "TRUNCATE"], a: 0 }
+  ],
+  "Java": [
+    { q: "Which of these is not a Java access modifier?", opts: ["public", "private", "protected", "friendly"], a: 3 },
+    { q: "Which keyword is used to inherit a class in Java?", opts: ["implement", "extends", "inherits", "super"], a: 1 },
+    { q: "What is the size of int in Java?", opts: ["8 bit", "16 bit", "32 bit", "64 bit"], a: 2 }
+  ]
+};
+
+let quizState = {
+  subject: null,
+  questions: [],
+  index: 0,
+  score: 0,
+  selected: null
+};
+
+function initQuizPage() {
+  // render subject buttons
+  const subjectList = document.getElementById('subjectList');
+  subjectList.innerHTML = Object.keys(quizBank).map(s =>
+    `<button class="nav-btn" style="padding:0.45rem 0.8rem; font-size:0.9rem;" onclick="startQuiz('${s}')">${s}</button>`
+  ).join('');
+  loadQuizHistory();
+  // hide areas
+  document.getElementById('quizArea').style.display = 'none';
+  document.getElementById('quizSummary').style.display = 'none';
+}
+
+function startQuiz(subject) {
+  quizState.subject = subject;
+  quizState.questions = quizBank[subject].map((q, i) => ({ ...q }));
+  quizState.index = 0;
+  quizState.score = 0;
+  quizState.selected = null;
+
+  document.getElementById('quizSubjectTitle').textContent = subject;
+  document.getElementById('quizProgressText').textContent = `1 / ${quizState.questions.length}`;
+  document.getElementById('quizArea').style.display = 'block';
+  document.getElementById('quizSummary').style.display = 'none';
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const qObj = quizState.questions[quizState.index];
+  document.getElementById('questionText').textContent = qObj.q;
+  const opts = qObj.opts || [];
+  const optionsList = document.getElementById('optionsList');
+  optionsList.innerHTML = opts.map((opt, idx) =>
+    `<button class="btn-secondary" style="text-align:left;" onclick="selectOption(${idx})" id="opt_${idx}">${escapeHtml(opt)}</button>`
+  ).join('');
+  document.getElementById('quizProgressText').textContent = `${quizState.index + 1} / ${quizState.questions.length}`;
+  quizState.selected = null;
+}
+
+function selectOption(idx) {
+  // record selection and highlight
+  quizState.selected = idx;
+  const qObj = quizState.questions[quizState.index];
+  // simple visual feedback
+  qObj.isCorrect = (idx === qObj.a);
+  if (qObj.isCorrect) quizState.score++;
+  Array.from(document.querySelectorAll('#optionsList button')).forEach(btn => btn.disabled = true);
+  // color correct / wrong
+  document.getElementById(`opt_${qObj.a}`).style.borderColor = 'var(--success)';
+  if (idx !== qObj.a) {
+    const btn = document.getElementById(`opt_${idx}`);
+    if (btn) btn.style.borderColor = 'var(--accent)';
+  }
+}
+
+function nextQuestion() {
+  // if not selected, just move on (allow skipping)
+  // advance
+  quizState.index++;
+  if (quizState.index >= quizState.questions.length) {
+    finishQuiz();
+    return;
+  }
+  renderQuestion();
+}
+
+function finishQuiz() {
+  const total = quizState.questions.length;
+  const correct = quizState.score;
+  const percent = Math.round((correct / total) * 100);
+  document.getElementById('quizArea').style.display = 'none';
+  document.getElementById('quizSummary').style.display = 'block';
+  document.getElementById('summaryBody').innerHTML = `
+    <div style="font-weight:700; margin-bottom:0.6rem;">${escapeHtml(quizState.subject)} - Result</div>
+    <div>Score: <strong>${correct}</strong> / ${total} (${percent}%)</div>
+    <div style="margin-top:0.6rem;">Saved to history.</div>
+  `;
+  saveAttempt({ subject: quizState.subject, score: correct, total, ts: new Date().toISOString() });
+  loadQuizHistory();
+}
+
+function quitQuiz() {
+  document.getElementById('quizArea').style.display = 'none';
+  document.getElementById('quizSummary').style.display = 'none';
+  // leave selector visible
+}
+
+function retakeQuiz() {
+  if (!quizState.subject) return;
+  startQuiz(quizState.subject);
+}
+
+/* history in localStorage */
+function saveAttempt(attempt) {
+  const key = 'quizAttempts';
+  const arr = JSON.parse(localStorage.getItem(key) || '[]');
+  arr.unshift(attempt);
+  if (arr.length > 50) arr.pop();
+  localStorage.setItem(key, JSON.stringify(arr));
+}
+
+function loadQuizHistory() {
+  const key = 'quizAttempts';
+  const arr = JSON.parse(localStorage.getItem(key) || '[]');
+  const el = document.getElementById('quizHistory');
+  if (!el) return;
+  if (arr.length === 0) {
+    el.innerHTML = '<div class="empty-state">No attempts yet.</div>';
+    return;
+  }
+  el.innerHTML = arr.slice(0, 10).map(a => {
+    const date = new Date(a.ts).toLocaleString();
+    return `<div style="padding:0.5rem 0; border-bottom:1px solid var(--border-light);">
+      <div style="font-weight:600">${escapeHtml(a.subject)} — ${a.score}/${a.total} (${Math.round(a.score / a.total * 100)}%)</div>
+      <div style="font-size:0.85rem; color:var(--text-light-muted)">${date}</div>
+    </div>`;
+  }).join('');
+}
+
+/* small helper so showPage triggers quiz init */
+(function patchShowPageForQuiz(){
+  const orig = window.showPage;
+  window.showPage = function(pageName, ev){
+    // call original
+    orig(pageName, ev);
+    if (pageName === 'quiz') initQuizPage();
+  };
+})();
+
         window.handleLogin = handleLogin;
         window.handleRegister = handleRegister;
         window.toggleLoginForm = toggleLoginForm;
@@ -1785,6 +1991,8 @@
             // ensure initial theme/dark toggle state
             initTheme();
         });
+
+
     </script>
 </body>
 </html>

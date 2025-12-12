@@ -9,7 +9,7 @@
     /* proxy /api/* to your backend service (replace the backend URL) */
     {
       "src": "^/api/(.*)$",
-      "dest": "https://<YOUR_BACKEND_URL>/api/$1"
+      "dest": "https://https://studytrackerog.onrender.com/api/$1"
     },
 
     /* fallback: serve index for SPA client-side routing if any */
